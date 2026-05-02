@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 24px;
+      }
+
+      label {
+        display: block;
+        margin-top: 16px;
+        font-weight: bold;
+      }
+
+      input, select, button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 6px;
+        box-sizing: border-box;
+      }
+
+      button {
+        margin-top: 24px;
+        cursor: pointer;
+      }
+
+      .message {
+        margin-top: 20px;
+        padding: 12px;
+        display: none;
+      }
+
+      .success {
+        background: #e7f7ec;
+        color: #135c2c;
+      }
+
+      .error {
+        background: #fdecec;
+        color: #7a1d1d;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Restaurant Activation Request</h1>
+    <p>This form submits to HubSpot and triggers the onboarding automation.</p>
+
+    <form id="activationForm">
+      <label>Restaurant Name</label>
+      <input name="restaurant_name" required>
+
+      <label>Contact Email</label>
+      <input name="email" type="email" required>
+
+      <label>Contact Phone</label>
+      <input name="phone" required>
+
+      <label>Country</label>
+      <select name="onbaord_country" required>
+        <option value="">Select country</option>
+        <option value="KSA">KSA</option>
+        <option value="UAE">UAE</option>
+        <option value="Qatar">Qatar</option>
+        <option value="Kuwait">Kuwait</option>
+        <option value="Bahrain">Bahrain</option>
+      </select>
+
+      <label>Aggregator</label>
+      <select name="aggregator" required>
+        <option value="">Select aggregator</option>
+        <option value="Talabat">Talabat</option>
+        <option value="Mrsool">Mrsool</option>
+        <option value="Keeta">Keeta</option>
+        <option value="Ninja">Ninja</option>
+        <option value="Noon">Noon</option>
+      </select>
+
+      <label>Number of Branches</label>
+      <input name="number_of_branches" type="number" min="1" required>
+
+      <button type="submit">Submit Request</button>
+    </form>
+
+    <div id="message" class="message"></div>
+
+    <script>
+      const HUBSPOT_PORTAL_ID = '148391838';
+      const HUBSPOT_FORM_ID = '4fe15966-dc6c-4206-808b-fdae65a75277';
+
+      const form = document.getElementById('activationForm');
+      const messageBox = document.getElementById('message');
+
+      function showMessage(text, type) {
+        messageBox.style.display = 'block';
+        messageBox.className = 'message ' + type;
+        messageBox.textContent = text;
+      }
+
+      form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const formData = new FormData(form);
+
+        const restaurantName = formData.get('restaurant_name');
+        const contactEmail = formData.get('email');
+        const contactPhone = formData.get('phone');
+        const country = formData.get('onbaord_country');
+        const aggregator = formData.get('aggregator');
+        const numberOfBranches = formData.get('number_of_branches');
+
+        const hubspotPayload = {
+          fields: [
+            {
+              name: 'restaurant_name',
+              value: restaurantName
+            },
+            {
+              name: 'email',
+              value: contactEmail
+            },
+            {
+              name: 'phone',
+              value: contactPhone
+            },
+            {
+              name: 'onbaord_country',
+              value: country
+            },
+            {
+              name: 'aggregator',
+              value: aggregator
+            },
+            {
+              name: 'number_of_branches',
+              value: numberOfBranches
+            }
+          ]
+        };
+
+        const automationPayload = {
+          restaurantName: restaurantName,
+          contactEmail: contactEmail,
+          contactPhone: contactPhone,
+          country: country,
+          aggregator: aggregator,
+          numberOfBranches: numberOfBranches
+        };
+
+        try {
+          const hubspotResponse = await fetch(
+            'https://api.hsforms.com/submissions/v3/integration/submit/' +
+              HUBSPOT_PORTAL_ID +
+              '/' +
+              HUBSPOT_FORM_ID,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(hubspotPayload)
+            }
+          );
+
+          if (!hubspotResponse.ok) {
+            const errorText = await hubspotResponse.text();
+            throw new Error('HubSpot submission failed: ' + errorText);
+          }
+
+          google.script.run
+            .withSuccessHandler(function(response) {
+              if (response.success) {
+                showMessage('Submitted successfully to HubSpot, Google Sheets, and Slack.', 'success');
+                form.reset();
+              } else {
+                showMessage('Automation error: ' + response.message, 'error');
+              }
+            })
+            .withFailureHandler(function(error) {
+              showMessage('Apps Script failed: ' + error.message, 'error');
+            })
+            .handleSubmission(automationPayload);
+
+        } catch (error) {
+          showMessage(error.message, 'error');
+        }
+      });
+    </script>
+  </body>
+</html>
